@@ -1,0 +1,22 @@
+Food Tracker App 🍎
+This project is a Food Tracker App built using Google's Gemini AI, Streamlit, and Large Language Models (LLMs). It provides an intelligent and user-friendly interface to track your daily food intake, gain insights into nutritional values, and maintain a healthy lifestyle.
+
+🌟 Key Features
+AI-Powered Food Analysis:
+Leverages Gemini AI to process user input and provide nutritional breakdowns.
+
+Interactive UI with Streamlit:
+An intuitive web-based interface that makes tracking your meals seamless and enjoyable.
+
+LLM-Powered Insights:
+Advanced natural language understanding to answer your queries about food items, diet plans, and nutritional content.
+
+Customizable Options:
+Add or edit food items, track calories, and tailor the app to your personal dietary goals.
+
+🚀 Tech Stack
+Framework: Streamlit for the front-end interface.
+AI Model: Google's Gemini AI for intelligent processing.
+Backend: Python for data handling and integration with LLMs.
+📈 Why Use This App?
+The Food Tracker App simplifies diet management by combining the power of AI and intuitive design. Whether you're aiming to lose weight, gain muscle, or maintain a balanced diet, this app is your go-to companion.
