@@ -39,6 +39,8 @@ try:
     from langchain.prompts import PromptTemplate
     from langchain.text_splitter import RecursiveCharacterTextSplitter
     from langchain.docstore.document import Document
+    from dotenv import load_dotenv
+    
 except ImportError as e:
     st.error(f"Import error: {str(e)}")
     st.error("Please make sure all required packages are installed in your Streamlit environment.")
