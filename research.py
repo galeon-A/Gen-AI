@@ -2,11 +2,11 @@ import streamlit as st
 import os
 import sys
 
-# Safely import packages
+
 st.title("Galaxy")
 st.caption("An intelligent researcher. Galaxy helps in your research and can also assist you in writing research papers.")
 
-# Create requirements.txt in the sidebar
+
 with st.sidebar:
     st.header("Setup Guide")
     st.subheader("Required packages")
@@ -23,15 +23,14 @@ with st.sidebar:
     
     st.markdown("If you're experiencing import errors, make sure your requirements.txt file includes all the packages above.")
 
-# Try imports one by one to provide better error messages
+
 try:
-    # No longer using dotenv
-    # Simply tell users they can provide their API key directly
+   # users they can provide their API key directly
     pass
 except ImportError:
     st.warning("python-dotenv package not found. This is fine - you can provide your API key directly.")
 
-# Try other imports
+
 missing_packages = []
 
 try:
@@ -59,7 +58,7 @@ try:
 except ImportError:
     missing_packages.append("langchain")
 
-# If we're missing any crucial packages, show error and stop
+
 if missing_packages:
     st.error(f"Missing required packages: {', '.join(missing_packages)}")
     st.error("Please make sure all required packages are installed in your Streamlit environment.")
@@ -75,7 +74,6 @@ if missing_packages:
         
     st.stop()
 
-# API Key Management
 with st.sidebar:
     st.header("API Configuration")
     
@@ -179,7 +177,7 @@ if llm:
                     else:
                         return "I couldn't find any relevant information to answer your question."
                 except Exception as e:
-                    return f"An error occurred while processing your question: {str(e)}. Please try again."
+                    return f"An error occurred while processing your question: {str(e)}."
 
         def writer(topic):
             with st.status("Writing research paper..."):
@@ -228,7 +226,7 @@ if llm:
                 except Exception as e:
                     return f"Error generating summary: {str(e)}"
 
-        # User Input
+     
         user_input = st.chat_input("ask to Galaxy")
         if user_input:
             with st.chat_message("user"):
