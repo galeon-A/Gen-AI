@@ -1,0 +1,491 @@
+%pip install pandas faker numpy scipy matplotlib seaborn
+%pip install kafka-python delta-spark pyarrow
+%pip install azure-storage-blob sqlalchemy pyodbc
+
+# =========================================================
+# Project 1: Engine Telemetry Data Generator (Cummins-style)
+# File: generate_sensor_data.py
+# Purpose:
+# Simulate raw IoT engine telemetry with:
+# - CSV + JSON outputs
+# - Missing values
+# - Duplicates
+# - Outliers
+# - Multi-source schema differences
+# =========================================================
+
+import pandas as pd
+import numpy as np
+import random
+import json
+import os
+from faker import Faker
+from datetime import datetime, timedelta
+
+# -----------------------------
+# CONFIG
+# -----------------------------
+NUM_ROWS = 100000
+
+NULL_PERCENT = 0.15       # 15% nulls
+DUPLICATE_PERCENT = 0.10  # 10% duplicates
+OUTLIER_PERCENT = 0.05    # 5% outliers
+
+CSV_OUTPUT_PATH = "raw_data/telemetry_csv/"
+JSON_OUTPUT_PATH = "raw_data/telemetry_json/"
+
+fake = Faker()
+
+# Create directories
+os.makedirs(CSV_OUTPUT_PATH, exist_ok=True)
+os.makedirs(JSON_OUTPUT_PATH, exist_ok=True)
+
+
+# -----------------------------
+# SENSOR VALUE GENERATORS
+# -----------------------------
+def generate_normal_record():
+    """Generate realistic engine telemetry record"""
+    return {
+        "engine_id": f"ENG-{random.randint(1000,9999)}",
+        "timestamp": fake.date_time_between(start_date="-30d", end_date="now").isoformat(),
+        "rpm": random.randint(600, 2500),
+        "oil_pressure_psi": round(random.uniform(25, 110), 2),
+        "coolant_temp_c": round(random.uniform(75, 115), 2),
+        "exhaust_nox_ppm": round(random.uniform(50, 400), 2),
+        "fuel_rate_lph": round(random.uniform(5, 40), 2),
+        "gps_lat": round(random.uniform(-90, 90), 6),
+        "gps_long": round(random.uniform(-180, 180), 6),
+        "source_type": random.choice(["csv", "json"])
+    }
+
+
+def inject_nulls(record):
+    """Inject missing values"""
+    nullable_fields = [
+        "rpm",
+        "oil_pressure_psi",
+        "coolant_temp_c",
+        "exhaust_nox_ppm",
+        "fuel_rate_lph"
+    ]
+
+    field_to_null = random.choice(nullable_fields)
+    record[field_to_null] = None
+    return record
+
+
+def inject_outliers(record):
+    """Inject impossible/dirty sensor values"""
+    outlier_type = random.choice([
+        "rpm_negative",
+        "oil_pressure_extreme",
+        "coolant_overheat",
+        "nox_negative"
+    ])
+
+    if outlier_type == "rpm_negative":
+        record["rpm"] = random.randint(-1000, -1)
+
+    elif outlier_type == "oil_pressure_extreme":
+        record["oil_pressure_psi"] = random.uniform(500, 9999)
+
+    elif outlier_type == "coolant_overheat":
+        record["coolant_temp_c"] = random.uniform(150, 300)
+
+    elif outlier_type == "nox_negative":
+        record["exhaust_nox_ppm"] = random.uniform(-500, -1)
+
+    return record
+
+
+# -----------------------------
+# DATA GENERATION
+# -----------------------------
+print("Generating base records...")
+records = [generate_normal_record() for _ in range(NUM_ROWS)]
+
+# -----------------------------
+# ADD NULLS
+# -----------------------------
+num_nulls = int(NUM_ROWS * NULL_PERCENT)
+null_indices = random.sample(range(NUM_ROWS), num_nulls)
+
+for idx in null_indices:
+    records[idx] = inject_nulls(records[idx])
+
+# -----------------------------
+# ADD OUTLIERS
+# -----------------------------
+num_outliers = int(NUM_ROWS * OUTLIER_PERCENT)
+outlier_indices = random.sample(range(NUM_ROWS), num_outliers)
+
+for idx in outlier_indices:
+    records[idx] = inject_outliers(records[idx])
+
+# -----------------------------
+# ADD DUPLICATES
+# -----------------------------
+num_duplicates = int(NUM_ROWS * DUPLICATE_PERCENT)
+duplicate_records = random.choices(records, k=num_duplicates)
+
+records.extend(duplicate_records)
+
+# Final DataFrame
+df = pd.DataFrame(records)
+
+# -----------------------------
+# SHUFFLE
+# -----------------------------
+df = df.sample(frac=1).reset_index(drop=True)
+
+# -----------------------------
+# SPLIT BY SOURCE TYPE
+# -----------------------------
+csv_df = df[df["source_type"] == "csv"]
+json_df = df[df["source_type"] == "json"]
+
+# -----------------------------
+# SAVE CSV
+# -----------------------------
+csv_file = os.path.join(CSV_OUTPUT_PATH, "engine_telemetry.csv")
+csv_df.to_csv(csv_file, index=False)
+
+# -----------------------------
+# SAVE JSON (nested format)
+# -----------------------------
+json_file = os.path.join(JSON_OUTPUT_PATH, "engine_telemetry.json")
+
+json_records = []
+
+for _, row in json_df.iterrows():
+    json_records.append({
+        "engine_id": row["engine_id"],
+        "timestamp": row["timestamp"],
+        "sensor_data": {
+            "rpm": row["rpm"],
+            "oil_pressure_psi": row["oil_pressure_psi"],
+            "coolant_temp_c": row["coolant_temp_c"],
+            "exhaust_nox_ppm": row["exhaust_nox_ppm"],
+            "fuel_rate_lph": row["fuel_rate_lph"]
+        },
+        "location": {
+            "gps_lat": row["gps_lat"],
+            "gps_long": row["gps_long"]
+        },
+        "source_type": row["source_type"]
+    })
+
+with open(json_file, "w") as f:
+    for record in json_records:
+        f.write(json.dumps(record) + "\n")
+
+print("Telemetry Data Generation Complete")
+
+print(f"Total Rows Generated: {len(df)}")
+print(f"CSV Rows: {len(csv_df)}")
+print(f"JSON Rows: {len(json_df)}")
+print(f"Injected Nulls: {num_nulls}")
+print(f"Injected Outliers: {num_outliers}")
+print(f"Injected Duplicates: {num_duplicates}")
+print(f"CSV Output: {csv_file}")
+print(f"JSON Output: {json_file}")
+
+print("\nSample Records:")
+print(df.head())
+
+
+
+# Bronze Layer Ingestion Pipeline
+# File: bronze_ingestion.py
+# Purpose:
+# Ingest raw CSV + JSON telemetry data
+
+
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import (
+    col,
+    lit,
+    current_timestamp,
+    input_file_name,
+    sha2,
+    concat_ws
+)
+
+
+spark = SparkSession.builder \
+    .appName("EngineTelemetryBronzeIngestion") \
+    .getOrCreate()
+
+
+# INPUT PATHS
+
+import os
+CSV_PATH = os.path.abspath("raw_data/telemetry_csv/")
+JSON_PATH = os.path.abspath("raw_data/telemetry_json/")
+
+
+csv_df = spark.read \
+    .option("header", True) \
+    .option("inferSchema", True) \
+    .csv(CSV_PATH)
+
+# Standardize CSV schema
+csv_df = csv_df.select(
+    col("engine_id"),
+    col("timestamp"),
+    col("rpm"),
+    col("oil_pressure_psi"),
+    col("coolant_temp_c"),
+    col("exhaust_nox_ppm"),
+    col("fuel_rate_lph"),
+    col("gps_lat"),
+    col("gps_long"),
+    col("source_type")
+)
+
+
+json_df = spark.read \
+    .option("multiLine", False) \
+    .json(JSON_PATH)
+
+# Flatten nested JSON structure
+json_df = json_df.select(
+    col("engine_id"),
+    col("timestamp"),
+    col("sensor_data.rpm").alias("rpm"),
+    col("sensor_data.oil_pressure_psi").alias("oil_pressure_psi"),
+    col("sensor_data.coolant_temp_c").alias("coolant_temp_c"),
+    col("sensor_data.exhaust_nox_ppm").alias("exhaust_nox_ppm"),
+    col("sensor_data.fuel_rate_lph").alias("fuel_rate_lph"),
+    col("location.gps_lat").alias("gps_lat"),
+    col("location.gps_long").alias("gps_long"),
+    col("source_type")
+)
+
+
+bronze_df = csv_df.unionByName(json_df)
+
+
+bronze_df = bronze_df.withColumn(
+    "ingestion_time",
+    current_timestamp()
+)
+
+bronze_df = bronze_df.withColumn(
+    "data_source",
+    col("source_type")
+)
+
+# Create unique row hash for lineage + duplicate tracking
+bronze_df = bronze_df.withColumn(
+    "record_hash",
+    sha2(
+        concat_ws(
+            "||",
+            col("engine_id"),
+            col("timestamp"),
+            col("rpm"),
+            col("oil_pressure_psi"),
+            col("coolant_temp_c"),
+            col("exhaust_nox_ppm"),
+            col("fuel_rate_lph"),
+            col("gps_lat"),
+            col("gps_long")
+        ),
+        256
+    )
+)
+
+
+
+print("Bronze Layer Summary")
+
+
+print(f"Total Bronze Records: {bronze_df.count()}")
+
+print("Schema:")
+bronze_df.printSchema()
+
+print("Sample Records:")
+bronze_df.show(5, truncate=False)
+
+
+# WRITE TO BRONZE (DELTA TABLE)
+
+bronze_df.write \
+    .mode("overwrite") \
+    .format("delta") \
+    .saveAsTable("workspace.default.engine_telemetry_bronze")
+
+
+print("Bronze Layer Successfully Created")
+print("Table: workspace.default.engine_telemetry_bronze")
+
+
+# Silver + Gold Data Quality Pipeline
+# File: silver_gold_dq_pipeline.py
+# Purpose:
+# 1. Read Bronze Delta telemetry
+# 2. Clean + validate + deduplicate
+# 3. Build Silver Layer
+# 4. Generate Gold DQ Metrics
+
+
+
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import (
+    col,
+    when,
+    count,
+    sum as spark_sum,
+    round,
+    to_timestamp,
+    row_number,
+    current_timestamp,
+    lit
+)
+from pyspark.sql.window import Window
+
+
+# SPARK SESSION
+
+spark = SparkSession.builder \
+    .appName("EngineTelemetrySilverGoldDQ") \
+    .getOrCreate()
+
+
+# READ BRONZE TABLE
+
+bronze_df = spark.table("workspace.default.engine_telemetry_bronze")
+
+
+df = bronze_df.withColumn(
+    "event_timestamp",
+    to_timestamp(col("timestamp"))
+)
+
+
+# DUPLICATE DETECTION
+# Keep latest ingestion if duplicate hash
+
+window_spec = Window.partitionBy("record_hash").orderBy(col("ingestion_time").desc())
+
+df = df.withColumn(
+    "row_num",
+    row_number().over(window_spec)
+)
+
+df = df.withColumn(
+    "is_duplicate",
+    when(col("row_num") > 1, 1).otherwise(0)
+)
+
+
+# NULL CHECKS
+
+df = df.withColumn(
+    "has_null",
+    when(
+        col("engine_id").isNull() |
+        col("rpm").isNull() |
+        col("oil_pressure_psi").isNull() |
+        col("coolant_temp_c").isNull() |
+        col("exhaust_nox_ppm").isNull(),
+        1
+    ).otherwise(0)
+)
+
+
+df = df.withColumn(
+    "rpm_valid",
+    when((col("rpm") >= 500) & (col("rpm") <= 3000), 1).otherwise(0)
+)
+
+df = df.withColumn(
+    "oil_valid",
+    when((col("oil_pressure_psi") >= 20) & (col("oil_pressure_psi") <= 120), 1).otherwise(0)
+)
+
+df = df.withColumn(
+    "coolant_valid",
+    when((col("coolant_temp_c") >= 70) & (col("coolant_temp_c") <= 120), 1).otherwise(0)
+)
+
+df = df.withColumn(
+    "nox_valid",
+    when((col("exhaust_nox_ppm") > 0) & (col("exhaust_nox_ppm") <= 500), 1).otherwise(0)
+)
+
+
+df = df.withColumn(
+    "dq_status",
+    when(
+        (col("is_duplicate") == 0) &
+        (col("has_null") == 0) &
+        (col("rpm_valid") == 1) &
+        (col("oil_valid") == 1) &
+        (col("coolant_valid") == 1) &
+        (col("nox_valid") == 1),
+        "PASS"
+    ).otherwise("FAIL")
+)
+
+
+silver_df = df.filter(col("row_num") == 1)
+
+silver_df.write \
+    .mode("overwrite") \
+    .format("delta") \
+    .saveAsTable("workspace.default.engine_telemetry_silver")
+
+
+gold_df = silver_df.groupBy("data_source").agg(
+    count("*").alias("total_records"),
+
+    spark_sum(when(col("dq_status") == "PASS", 1).otherwise(0)).alias("passed_records"),
+
+    spark_sum(when(col("dq_status") == "FAIL", 1).otherwise(0)).alias("failed_records"),
+
+    spark_sum("is_duplicate").alias("duplicate_records"),
+
+    spark_sum("has_null").alias("null_records"),
+
+    spark_sum(when(col("rpm_valid") == 0, 1).otherwise(0)).alias("rpm_failures"),
+
+    spark_sum(when(col("oil_valid") == 0, 1).otherwise(0)).alias("oil_failures"),
+
+    spark_sum(when(col("coolant_valid") == 0, 1).otherwise(0)).alias("coolant_failures"),
+
+    spark_sum(when(col("nox_valid") == 0, 1).otherwise(0)).alias("nox_failures")
+)
+
+
+gold_df = gold_df.withColumn(
+    "pass_rate_pct",
+    round((col("passed_records") / col("total_records")) * 100, 2)
+)
+
+gold_df = gold_df.withColumn(
+    "fail_rate_pct",
+    round((col("failed_records") / col("total_records")) * 100, 2)
+)
+
+gold_df = gold_df.withColumn(
+    "dq_run_timestamp",
+    current_timestamp()
+)
+
+
+gold_df.write \
+    .mode("overwrite") \
+    .format("delta") \
+    .saveAsTable("workspace.default.engine_telemetry_gold_dq")
+
+
+print("Silver Table: workspace.default.engine_telemetry_silver")
+print("Gold Table: workspace.default.engine_telemetry_gold_dq")
+
+
+print("Gold Metrics Preview:")
+gold_df.show(truncate=False)
