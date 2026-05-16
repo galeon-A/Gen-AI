@@ -1,4 +1,4 @@
-# AI and Deep Learning Projects by Atharva Kulkarni  
+# AI and Data Engineering Projects by Atharva Kulkarni  
 
 Welcome to my GitHub repository! Here, you'll find a collection of projects showcasing my expertise and passion for Artificial Intelligence, Machine Learning, and Deep Learning. These projects demonstrate my skills in building predictive models, exploring generative AI applications, and implementing advanced deep learning techniques.  
 
@@ -14,7 +14,70 @@ Welcome to my GitHub repository! Here, you'll find a collection of projects show
 ### 🖥️ **Deep Learning**  
 - Neural network architectures for image and speech recognition.  
 - Computer vision projects using Convolutional Neural Networks (CNNs).  
-- Experimentation with cutting-edge frameworks like TensorFlow and PyTorch.  
+- Experimentation with cutting-edge frameworks like TensorFlow and PyTorch.
+
+
+  
+## Data Engineering
+
+# Engine Telemetry Data Quality Pipeline
+
+## Overview
+Designed and implemented an end-to-end PySpark + Databricks ETL pipeline that processes simulated IoT engine telemetry from 10K+ units across CSV/JSON sources.
+
+## Business Problem
+Cummins-style engine fleets generate dirty, incomplete, and duplicate telemetry data. Poor data quality can lead to:
+- Incorrect predictive maintenance
+- Engine downtime
+- Warranty cost inflation
+- Sensor reliability issues
+
+## Solution
+Built a medallion architecture:
+### Bronze:
+Raw ingestion from CSV + JSON
+
+### Silver:
+Data cleansing, deduplication, validation
+
+### Gold:
+Data quality KPIs + dashboard metrics
+
+---
+
+## Tech Stack
+- Python
+- PySpark
+- Databricks
+- Delta Lake
+- Great Expectations
+- SQL
+- Faker
+- Pandas
+
+---
+
+## Key Features
+- Simulated 100K+ telemetry records
+- 15% null injection
+- 10% duplicate injection
+- 5% outlier injection
+- Multi-source schema normalization
+- Delta Lake Bronze/Silver/Gold
+- DQ dashboard
+
+---
+
+## Impact
+- Engineered scalable ETL for industrial IoT
+- Reduced bad telemetry propagation by >95%
+- Built operational data quality monitoring
+
+## Future Enhancements
+- Kafka streaming ingestion
+- Airflow orchestration
+- ML anomaly detection
+- Unity Catalog governance 
 
 ---
 
