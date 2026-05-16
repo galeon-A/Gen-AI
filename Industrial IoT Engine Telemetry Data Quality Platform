@@ -1,9 +1,27 @@
+#Data Generator
+#   ↓
+#Raw CSV / JSON
+#   ↓
+#Bronze Layer (Raw Delta)
+#   ↓
+#Silver Layer (Clean + Validated)
+#   ↓
+#Gold Layer (DQ Metrics)
+#  ↓
+#Databricks SQL Dashboard
+
+
+
+
+
+
+
 %pip install pandas faker numpy scipy matplotlib seaborn
 %pip install kafka-python delta-spark pyarrow
 %pip install azure-storage-blob sqlalchemy pyodbc
 
 # =========================================================
-# Project 1: Engine Telemetry Data Generator (Cummins-style)
+# Engine Telemetry Data Generator
 # File: generate_sensor_data.py
 # Purpose:
 # Simulate raw IoT engine telemetry with:
@@ -12,7 +30,7 @@
 # - Duplicates
 # - Outliers
 # - Multi-source schema differences
-# =========================================================
+
 
 import pandas as pd
 import numpy as np
