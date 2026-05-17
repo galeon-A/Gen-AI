@@ -80,6 +80,146 @@ Data quality KPIs + dashboard metrics
 - Unity Catalog governance 
 
 ---
+# Pharma Commercial Patient Journey Lakehouse
+
+Overview
+
+This project simulates a real-world biopharma commercial data engineering use case inspired by enterprise requirements such as Bristol Myers Squibb’s commercial data platforms.
+
+The solution designs and implements an end-to-end ELT lakehouse pipeline that ingests, cleanses, transforms, and curates synthetic claims, patient/HUB, provider, and specialty pharmacy datasets into analytics-ready commercial data products using Databricks, Delta Lake, SQL, and PySpark.
+
+Business Problem
+
+Biopharma commercial organizations often struggle with fragmented patient and provider data spread across:
+
+Claims systems
+HUB/patient support programs
+Specialty pharmacy fulfillment
+Provider master systems
+Key business objective:
+
+Track patient progression from prescription → claim approval → HUB enrollment → therapy fulfillment → adherence, while identifying drop-off points and operational bottlenecks.
+
+Solution Architecture
+Medallion Architecture:
+Bronze Layer:
+Raw CSV/JSON ingestion
+Schema preservation
+Source lineage tracking
+Metadata enrichment
+Silver Layer:
+Cleansing
+Standardization
+Deduplication
+PHI masking
+Data validation
+SCD Type 2 provider modeling
+Gold Layer:
+Patient Journey Funnel
+Patient Drop-off Analysis
+Provider Performance Analytics
+Tech Stack
+Core:
+Databricks
+Delta Lake
+PySpark
+SQL
+Python
+Git/GitHub
+Data Engineering Concepts:
+ELT Pipelines
+Medallion Architecture (Bronze/Silver/Gold)
+Slowly Changing Dimensions (SCD Type 2)
+Delta MERGE / Upserts
+Data Quality Frameworks
+Governance & PHI Masking
+Visualization:
+Power BI / Tableau (Optional)
+Synthetic Datasets
+1. Claims Data
+
+Includes:
+
+Claim status
+NDC codes
+Diagnosis codes
+Payer IDs
+Rejection reasons
+2. Patient / HUB Data
+
+Includes:
+
+Enrollment
+Therapy start
+Support programs
+Consent
+3. Specialty Pharmacy Data
+
+Includes:
+
+Shipments
+Delivery delays
+Refill adherence
+4. Provider Master
+
+Includes:
+
+Specialty
+Territory
+Active status
+Key Features
+Data Engineering:
+Batch ingestion pipelines
+Incremental-ready architecture
+Cross-domain joins
+Curated business marts
+Data Quality:
+Null checks
+Duplicate detection
+Reconciliation
+Delay anomaly flags
+Standardization
+Governance:
+PHI masking
+Lineage
+Documentation
+Role-based conceptual access controls
+Gold Layer Outputs
+Patient Journey Funnel
+
+Tracks:
+
+Prescription initiation
+Claim approval
+HUB enrollment
+Shipment fulfillment
+Adherence
+Patient Drop-off Analysis
+
+Identifies:
+
+Rejected claims
+Missing HUB engagement
+Delayed shipments
+Provider Performance
+
+Measures:
+
+Approval rates
+Patient volume
+Delivery success
+Territory trends
+
+Raw Pharma Data Sources
+     ↓
+Bronze Layer (Raw Delta)
+     ↓
+Silver Layer (Clean + Standardized + SCD + Governance)
+     ↓
+Gold Layer (Commercial Analytics Data Products)
+     ↓
+Power BI / Tableau
+##############################################################################################################################
 
 ## 📌 Highlights  
 - 🌟 **Large Language Models (LLMs):** Development and fine-tuning of LLMs for specialized applications.  
