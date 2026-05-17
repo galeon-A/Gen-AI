@@ -1,0 +1,403 @@
+import pandas as pd
+import numpy as np
+import random
+from faker import Faker
+from datetime import datetime, timedelta
+import os
+
+fake = Faker()
+np.random.seed(42)
+random.seed(42)
+
+
+NUM_PATIENTS = 5000
+NUM_PROVIDERS = 500
+NUM_CLAIMS = 20000
+NUM_SHIPMENTS = 12000
+
+OUTPUT_DIR = "data"
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+
+SPECIALTIES = [
+    "Oncology", "Hematology", "Rheumatology",
+    "Cardiology", "Neurology"
+]
+
+TERRITORIES = [
+    "North", "South", "East", "West", "Central"
+]
+
+CLAIM_STATUSES = ["Approved", "Rejected", "Pending"]
+
+REJECTION_REASONS = [
+    "Prior Authorization Required",
+    "Coverage Denied",
+    "Invalid NDC",
+    "Patient Ineligible",
+    "Missing Information",
+    None
+]
+
+SUPPORT_PROGRAMS = [
+    "Copay Assistance",
+    "Nurse Support",
+    "Financial Assistance",
+    "Adherence Program"
+]
+
+SHIPMENT_STATUSES = [
+    "Delivered",
+    "Delayed",
+    "Cancelled",
+    "In Transit"
+]
+
+NDC_CODES = [f"{random.randint(10000,99999)}-{random.randint(1000,9999)}" for _ in range(50)]
+DIAGNOSIS_CODES = [f"C{random.randint(10,99)}.{random.randint(0,9)}" for _ in range(30)]
+PAYERS = [f"PAYER_{i}" for i in range(1, 21)]
+
+
+def random_date(start_days_ago=730, end_days_ago=0):
+    start = datetime.today() - timedelta(days=start_days_ago)
+    end = datetime.today() - timedelta(days=end_days_ago)
+    return fake.date_between(start_date=start, end_date=end)
+
+
+providers = []
+
+for i in range(1, NUM_PROVIDERS + 1):
+    providers.append({
+        "provider_id": f"PRV{i:05d}",
+        "npi": random.randint(1000000000, 9999999999),
+        "provider_name": fake.name(),
+        "specialty": random.choice(SPECIALTIES),
+        "territory": random.choice(TERRITORIES),
+        "active_flag": random.choice([True, True, True, False]),
+        "effective_date": random_date(),
+        "end_date": None
+    })
+
+providers_df = pd.DataFrame(providers)
+
+
+patients = []
+
+for i in range(1, NUM_PATIENTS + 1):
+    enrollment_date = random_date()
+    therapy_start = enrollment_date + timedelta(days=random.randint(1, 45))
+
+    patients.append({
+        "patient_id": f"PAT{i:06d}",
+        "patient_age": random.randint(18, 85),
+        "gender": random.choice(["Male", "Female"]),
+        "state": fake.state(),
+        "enrollment_date": enrollment_date,
+        "support_program": random.choice(SUPPORT_PROGRAMS),
+        "case_manager": fake.name(),
+        "consent_flag": random.choice([True, True, True, False]),
+        "therapy_start_date": therapy_start
+    })
+
+patients_df = pd.DataFrame(patients)
+
+
+claims = []
+
+for i in range(1, NUM_CLAIMS + 1):
+    patient = random.choice(patients)
+    provider = random.choice(providers)
+
+    claim_status = random.choices(
+        CLAIM_STATUSES,
+        weights=[0.7, 0.2, 0.1]
+    )[0]
+
+    rejection_reason = None
+    if claim_status == "Rejected":
+        rejection_reason = random.choice(REJECTION_REASONS[:-1])
+
+    claims.append({
+        "claim_id": f"CLM{i:07d}",
+        "patient_id": patient["patient_id"],
+        "provider_id": provider["provider_id"],
+        "ndc_code": random.choice(NDC_CODES),
+        "diagnosis_code": random.choice(DIAGNOSIS_CODES),
+        "prescription_date": random_date(),
+        "payer_id": random.choice(PAYERS),
+        "claim_status": claim_status,
+        "claim_amount": round(random.uniform(500, 15000), 2),
+        "rejection_reason": rejection_reason
+    })
+
+claims_df = pd.DataFrame(claims)
+
+# Introduce duplicates for realism
+duplicate_claims = claims_df.sample(frac=0.02, random_state=42)
+claims_df = pd.concat([claims_df, duplicate_claims], ignore_index=True)
+
+
+shipments = []
+
+for i in range(1, NUM_SHIPMENTS + 1):
+    patient = random.choice(patients)
+
+    fill_date = random_date()
+    delay = random.randint(0, 15)
+
+    shipments.append({
+        "shipment_id": f"SHP{i:07d}",
+        "patient_id": patient["patient_id"],
+        "fill_date": fill_date,
+        "shipment_status": random.choices(
+            SHIPMENT_STATUSES,
+            weights=[0.65, 0.15, 0.05, 0.15]
+        )[0],
+        "refill_number": random.randint(0, 12),
+        "delivery_delay_days": delay
+    })
+
+shipments_df = pd.DataFrame(shipments)
+
+
+# Missing values
+claims_df.loc[claims_df.sample(frac=0.01).index, "patient_id"] = None
+patients_df.loc[patients_df.sample(frac=0.01).index, "consent_flag"] = None
+shipments_df.loc[shipments_df.sample(frac=0.01).index, "shipment_status"] = None
+
+
+providers_df.to_csv(f"{OUTPUT_DIR}/raw_provider_master.csv", index=False)
+patients_df.to_csv(f"{OUTPUT_DIR}/raw_patient_hub.csv", index=False)
+claims_df.to_csv(f"{OUTPUT_DIR}/raw_claims.csv", index=False)
+shipments_df.to_csv(f"{OUTPUT_DIR}/raw_specialty_pharmacy.csv", index=False)
+
+print("Synthetic pharma datasets created successfully:")
+print(f"Providers: {providers_df.shape}")
+print(f"Patients/HUB: {patients_df.shape}")
+print(f"Claims: {claims_df.shape}")
+print(f"Shipments: {shipments_df.shape}")
+
+print(f"\nFiles saved in: {OUTPUT_DIR}/")
+
+# from pyspark.sql import SparkSession
+from pyspark.sql.functions import current_timestamp, lit, col
+from pyspark.sql.types import *
+
+# spark = SparkSession.builder.appName("PharmaLayer").getOrCreate()
+
+Base_path = "/Workspace/Users/atharvakulkarni329@gmail.com/Drafts/data/"
+Bronze_DB = "pharma_bronze"
+
+spark.sql(f"CREATE DATABASE IF NOT EXISTS {Bronze_DB}")
+
+claims_path = f"{Base_path}raw_claims.csv"
+patients_path = f"{Base_path}raw_patient_hub.csv"
+providers_path = f"{Base_path}raw_provider_master.csv"
+shipments_path = f"{Base_path}raw_specialty_pharmacy.csv"
+
+claims_schema = StructType([
+    StructField("claim_id", StringType(), True),
+    StructField("patient_id", StringType(), True),
+    StructField("provider_id", StringType(), True),
+    StructField("ndc_code", StringType(), True),
+    StructField("diagnosis_code", StringType(), True),
+    StructField("prescription_date", StringType(), True),
+    StructField("payer_id", StringType(), True),
+    StructField("claim_status", StringType(), True),
+    StructField("claim_amount", DoubleType(), True),
+    StructField("rejection_reason", StringType(), True)
+])
+
+patients_schema = StructType([
+    StructField("patient_id", StringType(), True),
+    StructField("patient_age", IntegerType(), True),
+    StructField("gender", StringType(), True),
+    StructField("state", StringType(), True),
+    StructField("enrollment_date", StringType(), True),
+    StructField("support_program", StringType(), True),
+    StructField("case_manager", StringType(), True),
+    StructField("consent_flag", StringType(), True),
+    StructField("therapy_start_date", StringType(), True)
+])
+providers_schema = StructType([
+    StructField("provider_id", StringType(), True),
+    StructField("npi", StringType(), True),
+    StructField("provider_name", StringType(), True),
+    StructField("specialty", StringType(), True),
+    StructField("territory", StringType(), True),
+    StructField("active_flag", StringType(), True),
+    StructField("effective_date", StringType(), True),
+    StructField("end_date", StringType(), True)
+])
+shipments_schema = StructType([
+    StructField("shipment_id", StringType(), True),
+    StructField("patient_id", StringType(), True),
+    StructField("fill_date", StringType(), True),
+    StructField("shipment_status", StringType(), True),
+    StructField("refill_number", IntegerType(), True),
+    StructField("delivery_delay_days", IntegerType(), True)
+])
+
+def ingest_bronze(file_path, schema, table_name, source_name):
+    # print(f"Ingesting{source_name}. . . ")
+
+    df = (spark.read.format("csv")
+          .option("header", True)
+          .schema(schema)
+          .load(file_path)
+          )
+    
+    bronze_df = (
+        df.withColumn("bronze_timestamp", current_timestamp())
+          .withColumn("source", lit(source_name))
+          # .withColumn("file_path", col("_metadata.file_path"))
+    )
+    (
+        bronze_df.write.format("delta")
+        .mode("overwrite")
+        .option("overwriteSchema", "true")
+        .saveAsTable(f"{Bronze_DB}.{table_name}")     
+    )
+
+ingest_bronze(
+    claims_path,
+    claims_schema,
+    "claims_raw",
+    "claims"
+)
+
+ingest_bronze(
+    patients_path,
+    patients_schema,
+    "patient_hub_raw",
+    "patient_hub"
+)
+ingest_bronze(
+    providers_path,
+    providers_schema,
+    "provider_master_raw",
+    "provider_master"
+)
+ingest_bronze(
+    shipments_path,
+    shipments_schema,
+    "specialty_pharmacy_raw",
+    "specialty_pharmacy"
+)
+
+# print("Bronze summary")
+
+tables = [
+    "claims_raw",
+    "patient_hub_raw",
+    "provider_master_raw",
+    "specialty_pharmacy_raw"
+]
+for table in tables:
+    count = spark.sql(f"SELECT COUNT(*) AS cnt FROM {Bronze_DB}.{table}").collect()[0]["cnt"]
+    # print(f"{table}:{count} rows")
+
+# print("RAW NULL CHECKS")
+# print("====================================================")
+
+display(spark.sql(f"""
+SELECT
+    SUM(CASE WHEN patient_id IS NULL THEN 1 ELSE 0 END) AS null_patient_ids,
+    SUM(CASE WHEN claim_id IS NULL THEN 1 ELSE 0 END) AS null_claim_ids
+FROM {Bronze_DB}.claims_raw
+"""))
+
+display(spark.sql(f"""
+SELECT
+    SUM(CASE WHEN patient_id IS NULL THEN 1 ELSE 0 END) AS null_patient_ids
+FROM {Bronze_DB}.patient_hub_raw
+"""))
+
+# print("====================================================")
+# print("DUPLICATE CLAIM CHECK")
+# print("====================================================")
+
+display(spark.sql(f"""
+SELECT claim_id, COUNT(*) as duplicate_count
+FROM {Bronze_DB}.claims_raw
+GROUP BY claim_id
+HAVING COUNT(*) > 1
+ORDER BY duplicate_count DESC
+LIMIT 10
+"""))
+
+# print("Bronze layer ingestion completed successfully.")
+
+from pyspark.sql.functions import *
+from pyspark.sql.window import Window
+
+Bronze_DB = "pharma_bronze"
+Silver_DB = "pharmacy_silver"
+
+spark.sql(f"CREATE DATABASE IF NOT EXISTS {Silver_DB}")
+
+claims_raw = spark.table(f"{Bronze_DB}.claims_raw")
+claims_window = Window.partitionBy("claim_id").orderBy(col("bronze_timestamp").desc())
+
+claims_silver = (
+    claims_raw
+    .withColumn("row_num", row_number().over(claims_window))
+    .filter(col("row_num") == 1)
+    .drop("row_num")
+    .filter(col("patient_id").isNotNull())
+    .withColumn("prescription_date", to_date("prescription_date"))
+    .withColumn("claim_status", upper(trim(col("claim_status"))))
+    .withColumn("claim_amount", round(col("claim_amount"), 2))
+)
+
+claims_silver.write.format("delta").mode("overwrite").saveAsTable(f"{Silver_DB}.claims_silver")
+
+patients_raw = spark.table(f"{Bronze_DB}.patient_hub_raw")
+
+patients_silver = (
+    patients_raw
+    .filter(col("patient_id").isNotNull())
+    .dropDuplicates(["patient_id"])
+    .withColumn("enrollment_date", to_date("enrollment_date"))
+    .withColumn("therapy_start_date", to_date("therapy_start_date"))
+    .withColumn("consent_flag",
+                when(col("consent_flag").isin("True", "true", True), lit(True))
+                .otherwise(lit(False)))
+    # PHI masking
+    .withColumn("case_manager_masked", sha2(col("case_manager"), 256))
+    .drop("case_manager")
+)
+
+patients_silver.write.format("delta").mode("overwrite").saveAsTable(f"{Silver_DB}.patient_hub_clean")
+
+
+providers_raw = spark.table(f"{Bronze_DB}.provider_master_raw")
+
+providers_silver = (
+    providers_raw
+    .dropDuplicates(["provider_id", "effective_date"])
+    .withColumn("effective_date", to_date("effective_date"))
+    .withColumn("end_date", to_date("end_date"))
+    .withColumn("is_current",
+                when(col("end_date").isNull(), lit(True))
+                .otherwise(lit(False)))
+)
+
+providers_silver.write.format("delta").mode("overwrite").saveAsTable(f"{Silver_DB}.provider_master_clean")
+
+shipments_raw = spark.table(f"{Bronze_DB}.specialty_pharmacy_raw")
+
+shipments_silver = (
+    shipments_raw
+    .filter(col("patient_id").isNotNull())
+    .dropDuplicates(["shipment_id"])
+    .withColumn("fill_date", to_date("fill_date"))
+    .withColumn("shipment_status", upper(trim(col("shipment_status"))))
+    .withColumn("delay_flag",
+                when(col("delivery_delay_days") > 7, lit(True))
+                .otherwise(lit(False)))
+)
+
+shipments_silver.write.format("delta").mode("overwrite").saveAsTable(f"{Silver_DB}.specialty_pharmacy_clean")
+
+print("Silver Layer Completed Successfully")
